@@ -123,6 +123,7 @@ func (s *puzzleState) run() {
 		case <-trigger:
 			r := postResponse{
 				GHCIOutput: s.expr + ": " + s.ghciOut,
+				PuzzleGoal: "[1,2,3,4,5]",
 				Tokens:     slices.Clone(s.tokens),
 			}
 			bs, _ := json.Marshal(r)
@@ -191,6 +192,7 @@ type postRequest struct {
 type postResponse struct {
 	GHCIOutput string
 	PuzzleID   int
+	PuzzleGoal string
 	Tokens     []puzzleToken
 }
 

@@ -46,6 +46,7 @@ socket.addEventListener("message", (event) => {
 	        // New puzzle!
 	        puzzleId = obj.PuzzleID;
 	        clientId = Math.floor(Math.random() * tokens.length);
+	        document.getElementById("goal").innerHTML = obj.PuzzleGoal
 
 	        console.log("clientId: ", clientId);
         }
