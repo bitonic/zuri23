@@ -1,4 +1,9 @@
 body {
+    margin: 0;
+    padding: 0;
+}
+
+#wrapper {
     display: grid;
     height: 100vh;
     grid-template-rows: auto auto 1fr;
@@ -6,10 +11,11 @@ body {
     padding: 0;
 }
 
-#goal {
+h1 {
     margin: 0;
     padding: 0.5rem;
     justify-self: center;
+    font-family: sans-serif;
 }
 
 #notebook {
@@ -30,4 +36,14 @@ body {
     color: springgreen;
     font: monospace;
     overflow: scroll;
+}
+
+#devbox {
+    position: absolute;
+    left: 0;
+    top: 0;
+}
+
+#goal {
+    font-family: monospace;
 }

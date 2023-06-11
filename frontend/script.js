@@ -1,4 +1,3 @@
-
 const canvas = document.getElementById("notebook");
 canvas.style.cursor = 'none';
 var clientId = 0;
@@ -8,13 +7,20 @@ var tokens = [
     { txt: "...", X: 50 + Math.random() * 100, Y: 50 + Math.random() * 500 },
 ];
 
+var moving = true;
+
 canvas.addEventListener("mousemove", e => {
+    if (!moving) { return; }
     const rect = canvas.getBoundingClientRect();
     tokens[clientId].X = e.pageX - rect.left;
     tokens[clientId].Y = e.pageY - rect.top;
     render();
     send();
 });
+
+canvas.addEventListener('click', () => {
+    moving = !moving;
+})
 
 function render() {
     const ctx = canvas.getContext("2d");
@@ -45,7 +51,7 @@ socket.addEventListener("message", (event) => {
 	        // New puzzle!
 	        puzzleId = obj.PuzzleID;
 	        clientId = Math.floor(Math.random() * tokens.length);
-                tokens = obj.Tokens;
+            tokens = obj.Tokens;
 	        document.getElementById("goal").innerHTML = obj.PuzzleGoal
 
 	        console.log("clientId: ", clientId);
