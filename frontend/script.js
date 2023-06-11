@@ -23,7 +23,7 @@ canvas.addEventListener("mousemove", e => {
     }
 });
 function send() {
-    fetch('http://152.96.94.193:8001', {
+    fetch('/post', {
         method: 'POST',
         body: JSON.stringify(tokens[clientId]),
     })
