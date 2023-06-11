@@ -17,6 +17,7 @@ func main() {
 	s := &puzzleState{
 		currentPuzzle: 0,
 		ghciOut:       "<n/a>",
+		expr:          "",
 		tokens:        slices.Clone(puzzles[0]),
 	}
 	go s.run()
@@ -81,6 +82,7 @@ var (
 type puzzleState struct {
 	currentPuzzle int
 	ghciOut       string
+	expr          string
 	tokens        []puzzleToken
 }
 
@@ -120,7 +122,7 @@ func (s *puzzleState) run() {
 		select {
 		case <-trigger:
 			r := postResponse{
-				GHCIOutput: s.ghciOut,
+				GHCIOutput: s.expr + ": " + s.ghciOut,
 				Tokens:     slices.Clone(s.tokens),
 			}
 			bs, _ := json.Marshal(r)
@@ -151,6 +153,7 @@ func (s *puzzleState) run() {
 			expr := strings.Join(
 				Map(tokens, puzzleToken.token),
 				" ")
+			s.expr = expr
 			s.ghciOut = evaluate(expr)
 			retrigger()
 			//log.Printf("evaluate(%s): %s", expr, s.ghciOut)
