@@ -347,7 +347,7 @@ func ws(ws *websocket.Conn) {
 				continue
 			}
 			updates <- clientUpdate{
-				puzzleID: 0,
+				puzzleID: postReq.PuzzleID,
 				clientID: postReq.ClientID,
 				loc:      tokenLoc{postReq.X, postReq.Y},
 			}
