@@ -253,6 +253,7 @@ func (s *puzzleState) run() {
 				case <-sub.stop:
 					close(sub.responses)
 					delete(subs, id)
+					log.Printf("[%d] disconnected, %d/%d players", id, len(subs), len(s.tokens))
 					if r.TokenID >= 0 {
 						delete(assignments, id)
 						unassigned[r.TokenID] = true
