@@ -71,11 +71,11 @@ var (
 		{
 			goal: "[0,1,2,3,4]",
 			tokens: []puzzleToken{
-				{Token: "take", tokenLoc: tokenLoc{0.5, 0.5}},
-				{Token: "5", tokenLoc: tokenLoc{0.5, 0.5}},
-				{Token: "$", tokenLoc: tokenLoc{0.5, 0.5}},
-				{Token: "iterate", tokenLoc: tokenLoc{0.5, 0.5}},
-				{Token: "(+1)", tokenLoc: tokenLoc{0.5, 0.5}},
+				{Token: "take", tokenLoc: tokenLoc{0.76, 0.58}},
+				{Token: "5", tokenLoc: tokenLoc{0.17, 0.56}},
+				{Token: "$", tokenLoc: tokenLoc{0.36, 0.7}},
+				{Token: "iterate", tokenLoc: tokenLoc{0.62, 0.21}},
+				{Token: "(+1)", tokenLoc: tokenLoc{0.28, 0.24}},
 				{Token: "0", tokenLoc: tokenLoc{0.5, 0.5}},
 			},
 		},
