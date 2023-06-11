@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -16,11 +17,11 @@ func main() {
 	s := &puzzleState{
 		currentPuzzle: 0,
 		ghciOut:       "<n/a>",
-		expr:          "",
 		tokens:        slices.Clone(puzzles[0].tokens),
 		goal:          puzzles[0].goal,
 	}
 	go s.run()
+	go evaluator()
 
 	http.Handle("/ws", websocket.Handler(ws))
 	http.Handle("/", http.FileServer(http.Dir("../frontend")))
@@ -46,8 +47,8 @@ func (t puzzleToken) Loc() tokenLoc {
 }
 
 type puzzle struct {
-    goal   string
-    tokens []puzzleToken
+	goal   string
+	tokens []puzzleToken
 }
 
 type clientUpdate struct {
@@ -58,15 +59,15 @@ type clientUpdate struct {
 }
 
 func mk(goal string, tokens ...string) puzzle {
-    return puzzle {
-        goal: goal,
-	tokens: Map(tokens, func(t string) puzzleToken {
-		return puzzleToken{
-			tokenLoc: tokenLoc{50, 50},
-			Token:    t,
-		}
-	}),
-    }
+	return puzzle{
+		goal: goal,
+		tokens: Map(tokens, func(t string) puzzleToken {
+			return puzzleToken{
+				tokenLoc: tokenLoc{50, 50},
+				Token:    t,
+			}
+		}),
+	}
 }
 
 type subReq struct {
@@ -83,6 +84,9 @@ var (
 		mk("\"fin\"", "take", "3", "$", "drop", "2", "$", "show", "$", "1", "/", "0"),
 	}
 
+	evalReqs  = make(chan string, 16)
+	evalResps = make(chan string)
+
 	updates = make(chan clientUpdate, 32)
 
 	subChan = make(chan subReq)
@@ -91,7 +95,6 @@ var (
 type puzzleState struct {
 	currentPuzzle int
 	ghciOut       string
-	expr          string
 	tokens        []puzzleToken
 	goal          string
 }
@@ -113,7 +116,6 @@ func arrange(tokens []puzzleToken) []puzzleToken {
 }
 
 func (s *puzzleState) run() {
-	ticks := time.NewTicker(100 * time.Millisecond)
 	//newRoundCountdown := 50
 
 	subId := int64(0)
@@ -132,7 +134,7 @@ func (s *puzzleState) run() {
 		select {
 		case <-trigger:
 			r := postResponse{
-				GHCIOutput: "λ> " + s.expr + "\n" + s.ghciOut,
+				GHCIOutput: s.ghciOut,
 				PuzzleGoal: s.goal,
 				Tokens:     slices.Clone(s.tokens),
 			}
@@ -154,29 +156,19 @@ func (s *puzzleState) run() {
 			}
 			retrigger()
 
+			tokens := arrange(s.tokens)
+			expr := strings.Join(
+				Map(tokens, puzzleToken.token),
+				" ")
+			evalReqs <- expr
+
 		case s := <-subChan:
 			subs[subId] = s
 			subId += 1
 			retrigger()
 
-		case <-ticks.C:
-			tokens := arrange(s.tokens)
-			expr := strings.Join(
-				Map(tokens, puzzleToken.token),
-				" ")
-			s.expr = expr
-			s.ghciOut = evaluate(expr)
+		case s.ghciOut = <-evalResps:
 			retrigger()
-			//log.Printf("evaluate(%s): %s", expr, s.ghciOut)
-
-			/*
-				if slices.Equal(s.tokens, tokens) {
-					newRoundCountdown--
-					if newRoundCountdown == 0 {
-						newRoundCountdown = 50
-						s.next()
-					}
-				}*/
 
 		}
 	}
@@ -192,6 +184,39 @@ func (s *puzzleState) next() bool {
 	return true
 }
 
+func evaluate(input string) string {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	out, err := exec.CommandContext(ctx, "/usr/bin/env", "ghci", "-e", input).CombinedOutput()
+	if err != nil {
+		return string(out) + "(" + err.Error() + ")"
+	}
+	return string(out)
+}
+
+func evaluator() {
+	ticks := time.NewTicker(100 * time.Millisecond)
+	var (
+		current string
+		last    string
+	)
+	for {
+		select {
+		case new := <-evalReqs:
+			current = new
+		case <-ticks.C:
+			if current != "" && current != last {
+				log.Printf("evaluating %q", current)
+				result := evaluate(current)
+				evalResps <- "λ> " + current + "\n" + result
+			}
+			last = current
+			current = ""
+		}
+	}
+}
+
 type postRequest struct {
 	ClientID int
 	PuzzleID int
@@ -204,14 +229,6 @@ type postResponse struct {
 	PuzzleID   int
 	PuzzleGoal string
 	Tokens     []puzzleToken
-}
-
-func evaluate(input string) string {
-	out, err := exec.Command("/usr/bin/env", "ghci", "-e", input).CombinedOutput()
-	if err != nil {
-		return string(out) + "(" + err.Error() + ")"
-	}
-	return string(out)
 }
 
 func ws(ws *websocket.Conn) {
