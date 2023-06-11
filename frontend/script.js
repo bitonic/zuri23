@@ -1,14 +1,6 @@
 const canvas = document.getElementById("notebook");
 canvas.style.cursor = 'none';
 const ctx = canvas.getContext("2d");
-/*const tokens = [
-    { txt: "iterate", x: 50 + Math.random() * 100, y: 50 + Math.random() * 500 },
-    { txt: "take",    x: 50 + Math.random() * 100, y: 50 + Math.random() * 500 },
-    { txt: "10",      x: 50 + Math.random() * 100, y: 50 + Math.random() * 500 },
-    { txt: "$",       x: 50 + Math.random() * 100, y: 50 + Math.random() * 500 },
-    { txt: "(+1)",    x: 50 + Math.random() * 100, y: 50 + Math.random() * 500 },
-    { txt: "0",       x: 50 + Math.random() * 100, y: 50 + Math.random() * 500 },
-];*/
 
 var tokens = [
     { txt: "...", X: 50 + Math.random() * 100, Y: 50 + Math.random() * 500 },

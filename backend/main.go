@@ -71,7 +71,7 @@ type subReq struct {
 
 var (
 	puzzles = []puzzle{
-		mk("foo", "bar", "baz"),
+		mk("take", "5", "$", "iterate", "(+1)", "0"),
 	}
 
 	updates = make(chan clientUpdate, 32)
