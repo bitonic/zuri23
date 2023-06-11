@@ -1,0 +1,7 @@
+#notebook {
+    background-image: url("/paper.jpg");
+    background-size: cover;
+}
+#ghci {
+    font: monospace;
+}
