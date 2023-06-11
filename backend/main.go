@@ -205,6 +205,7 @@ func (s *puzzleState) run() {
 			r := postResponse{
 				GHCIOutput: s.ghciOut,
 				PuzzleGoal: s.goal,
+				PuzzleID:   s.currentPuzzle,
 				Tokens:     slices.Clone(s.tokens),
 			}
 			bs, _ := json.Marshal(r)
@@ -358,6 +359,7 @@ func ws(ws *websocket.Conn) {
 	for r := range responses {
 		if err := websocket.Message.Send(ws, string(r)); err != nil {
 			close(stop)
+			break
 		}
 	}
 	ws.Close()

@@ -47,16 +47,14 @@ socket.addEventListener("message", (event) => {
             }
         }
 
-        if (obj.PuzzleID > puzzleId) {
+        if (obj.PuzzleID != puzzleId) {
 	        // New puzzle!
 	        puzzleId = obj.PuzzleID;
-	        clientId = Math.floor(Math.random() * tokens.length);
-            tokens = obj.Tokens;
+	        tokens = obj.Tokens;
 	        document.getElementById("goal").innerHTML = obj.PuzzleGoal
 
-	        console.log("clientId: ", clientId);
         }
-        console.log(obj);
+        //console.log(obj);
         document.getElementById("ghci").innerHTML = obj.GHCIOutput;
         render();
 })
