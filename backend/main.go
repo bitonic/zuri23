@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os/exec"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/exp/slices"
@@ -235,7 +236,10 @@ func ws(ws *websocket.Conn) {
 	responses := make(chan []byte, 5)
 	stop := make(chan struct{})
 
+	var wg sync.WaitGroup
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		for {
 			var bs []byte
 			err := websocket.Message.Receive(ws, &bs)
@@ -267,5 +271,6 @@ func ws(ws *websocket.Conn) {
 	for range responses {
 	}
 	ws.Close()
+	wg.Wait()
 
 }
