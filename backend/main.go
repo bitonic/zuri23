@@ -17,7 +17,8 @@ func main() {
 		currentPuzzle: 0,
 		ghciOut:       "<n/a>",
 		expr:          "",
-		tokens:        slices.Clone(puzzles[0]),
+		tokens:        slices.Clone(puzzles[0].tokens),
+		goal:          puzzles[0].goal,
 	}
 	go s.run()
 
@@ -44,7 +45,10 @@ func (t puzzleToken) Loc() tokenLoc {
 	return t.tokenLoc
 }
 
-type puzzle []puzzleToken
+type puzzle struct {
+    goal   string
+    tokens []puzzleToken
+}
 
 type clientUpdate struct {
 	puzzleID int
@@ -53,13 +57,16 @@ type clientUpdate struct {
 	response chan postResponse
 }
 
-func mk(tokens ...string) puzzle {
-	return Map(tokens, func(t string) puzzleToken {
+func mk(goal string, tokens ...string) puzzle {
+    return puzzle {
+        goal: goal,
+	tokens: Map(tokens, func(t string) puzzleToken {
 		return puzzleToken{
 			tokenLoc: tokenLoc{50, 50},
 			Token:    t,
 		}
-	})
+	}),
+    }
 }
 
 type subReq struct {
@@ -69,7 +76,7 @@ type subReq struct {
 
 var (
 	puzzles = []puzzle{
-		mk("take", "5", "$", "iterate", "(+1)", "0"),
+		mk("[0,1,2,3,4]", "take", "5", "$", "iterate", "(+1)", "0"),
 	}
 
 	updates = make(chan clientUpdate, 32)
@@ -82,6 +89,7 @@ type puzzleState struct {
 	ghciOut       string
 	expr          string
 	tokens        []puzzleToken
+	goal          string
 }
 
 func Map[A, B any](xs []A, f func(A) B) []B {
@@ -121,7 +129,7 @@ func (s *puzzleState) run() {
 		case <-trigger:
 			r := postResponse{
 				GHCIOutput: s.expr + ": " + s.ghciOut,
-				PuzzleGoal: "[1,2,3,4,5]",
+				PuzzleGoal: s.goal,
 				Tokens:     slices.Clone(s.tokens),
 			}
 			bs, _ := json.Marshal(r)
@@ -176,7 +184,7 @@ func (s *puzzleState) next() bool {
 		return false
 	}
 
-	s.tokens = slices.Clone(puzzles[s.currentPuzzle])
+	s.tokens = slices.Clone(puzzles[s.currentPuzzle].tokens)
 	return true
 }
 
