@@ -1,6 +1,6 @@
 const canvas = document.getElementById("notebook");
 canvas.style.cursor = 'none';
-var clientId = 0;
+var tokenId = -1;
 var puzzleId = -1;
 
 var tokens = [
@@ -10,10 +10,10 @@ var tokens = [
 var moving = true;
 
 canvas.addEventListener("mousemove", e => {
-    if (!moving) { return; }
+    if (!moving || tokenId < 0) { return; }
     const rect = canvas.getBoundingClientRect();
-    tokens[clientId].X = (e.pageX - rect.left) / rect.width;
-    tokens[clientId].Y = (e.pageY - rect.top) / rect.height;
+    tokens[tokenId].X = (e.pageX - rect.left) / rect.width;
+    tokens[tokenId].Y = (e.pageY - rect.top) / rect.height;
     render();
     send();
 });
@@ -41,8 +41,9 @@ const socket = new WebSocket(wsUrl.href);
 socket.addEventListener("message", (event) => {
 	console.log("message:", event.data);
         const obj = JSON.parse(event.data);
+        tokenId = obj.TokenID
         for (let i in obj.Tokens) {
-            if (i != clientId) {
+            if (i != tokenId) {
                 tokens[i] = obj.Tokens[i];
             }
         }
@@ -65,10 +66,9 @@ var dataToSend = null;
 function send() {
     const timerExists = dataToSend !== null;
     dataToSend = JSON.stringify({
-        "ClientID": clientId,
         "PuzzleID": puzzleId,
-        "X": tokens[clientId].X,
-        "Y": tokens[clientId].Y
+        "X": tokens[tokenId].X,
+        "Y": tokens[tokenId].Y
     });
     if (!timerExists) {
         setTimeout(() => {

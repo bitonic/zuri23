@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"math/rand"
 	"net/http"
 	"os/exec"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"time"
 	"bytes"
 
+	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"golang.org/x/net/websocket"
 )
@@ -57,13 +59,13 @@ type puzzle struct {
 
 type clientUpdate struct {
 	puzzleID int
-	clientID int
+	tokenID  int
 	loc      tokenLoc
 	response chan postResponse
 }
 
 type subReq struct {
-	responses chan []byte
+	responses chan postResponse
 	stop      chan struct{}
 }
 
@@ -177,6 +179,12 @@ func arrange(tokens []puzzleToken) []puzzleToken {
 	return tokens
 }
 
+func shuffledKeys[K comparable, V any](m map[K]V) []K {
+	keys := maps.Keys(m)
+	rand.Shuffle(len(keys), func(i, j int) { keys[i], keys[j] = keys[j], keys[i] })
+	return keys
+}
+
 func (s *puzzleState) run() {
 	//newRoundCountdown := 50
 
@@ -189,6 +197,33 @@ func (s *puzzleState) run() {
 		select {
 		case updateTrigger <- struct{}{}:
 		default:
+		}
+	}
+
+	assignments := map[int64]int{} // Player to tokenID assignments
+	unassigned := map[int]bool{}   // Unassigned tokens
+
+	reassign := func() {
+		defer log.Printf("reassign: assignments=%v, unassigned=%v", assignments, unassigned)
+
+		available := map[int64]bool{} // The still available players
+		for id := range subs {
+			if _, ok := assignments[id]; !ok {
+				available[id] = true
+			}
+		}
+		if len(available) == 0 {
+			return
+		}
+		availableShuffled := shuffledKeys(available)
+		for _, tokenId := range shuffledKeys(unassigned) {
+			if len(availableShuffled) == 0 {
+				return
+			}
+			id := availableShuffled[0]
+			availableShuffled = availableShuffled[1:]
+			assignments[id] = tokenId
+			unassigned[tokenId] = false
 		}
 	}
 
@@ -209,13 +244,22 @@ func (s *puzzleState) run() {
 				PuzzleID:   s.currentPuzzle,
 				Tokens:     slices.Clone(s.tokens),
 			}
-			bs, _ := json.Marshal(r)
 			for id, sub := range subs {
+				if tokenID, ok := assignments[id]; ok {
+					r.TokenID = tokenID
+				} else {
+					r.TokenID = -1
+				}
 				select {
-				case sub.responses <- bs:
+				case sub.responses <- r:
 				case <-sub.stop:
 					close(sub.responses)
 					delete(subs, id)
+					if r.TokenID >= 0 {
+						delete(assignments, id)
+						unassigned[r.TokenID] = true
+						reassign()
+					}
 				default:
 				}
 			}
@@ -244,12 +288,21 @@ func (s *puzzleState) run() {
 			default:
 				log.Printf("unknown control command %q", c)
 			}
+
+			// Redo assignments on each control message.
+			assignments = map[int64]int{}
+			unassigned = map[int]bool{}
+			for i := range s.tokens {
+				unassigned[i] = true
+			}
+			reassign()
+
 			updateClients()
 
 		case u := <-updates:
-			if s.levelStarted && !s.levelClear && u.puzzleID == s.currentPuzzle && u.clientID >= 0 && u.clientID < len(s.tokens) {
-				log.Printf("update[%d]: %+v", u.clientID, u.loc)
-				s.tokens[u.clientID].tokenLoc = u.loc
+			if s.levelStarted && !s.levelClear && u.puzzleID == s.currentPuzzle && u.tokenID >= 0 && u.tokenID < len(s.tokens) {
+				log.Printf("update[%d]: %+v", u.tokenID, u.loc)
+				s.tokens[u.tokenID].tokenLoc = u.loc
 
 			}
 			updateClients()
@@ -316,7 +369,6 @@ func evaluator() {
 }
 
 type postRequest struct {
-	ClientID int
 	PuzzleID int
 	X        float64
 	Y        float64
@@ -326,11 +378,14 @@ type postResponse struct {
 	GHCIOutput string
 	PuzzleID   int
 	PuzzleGoal string
+	TokenID    int
 	Tokens     []puzzleToken
 }
 
 func ws(ws *websocket.Conn) {
-	responses := make(chan []byte, 5)
+	tokenID := int(-1)
+
+	responses := make(chan postResponse, 5)
 	stop := make(chan struct{})
 
 	var wg sync.WaitGroup
@@ -351,7 +406,7 @@ func ws(ws *websocket.Conn) {
 			}
 			updates <- clientUpdate{
 				puzzleID: postReq.PuzzleID,
-				clientID: postReq.ClientID,
+				tokenID:  tokenID,
 				loc:      tokenLoc{postReq.X, postReq.Y},
 			}
 		}
@@ -360,7 +415,9 @@ func ws(ws *websocket.Conn) {
 
 	subChan <- subReq{responses, stop}
 	for r := range responses {
-		if err := websocket.Message.Send(ws, string(r)); err != nil {
+		tokenID = r.TokenID // yeah it's racy.
+		bs, _ := json.Marshal(r)
+		if err := websocket.Message.Send(ws, string(bs)); err != nil {
 			close(stop)
 			break
 		}
