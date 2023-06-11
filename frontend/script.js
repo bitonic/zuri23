@@ -12,8 +12,8 @@ var moving = true;
 canvas.addEventListener("mousemove", e => {
     if (!moving) { return; }
     const rect = canvas.getBoundingClientRect();
-    tokens[clientId].X = e.pageX - rect.left;
-    tokens[clientId].Y = e.pageY - rect.top;
+    tokens[clientId].X = (e.pageX - rect.left) / rect.width;
+    tokens[clientId].Y = (e.pageY - rect.top) / rect.height;
     render();
     send();
 });
@@ -29,7 +29,7 @@ function render() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     for (let i in tokens) {
         const token = tokens[i];
-        ctx.fillText(token.Token, token.X, token.Y);
+        ctx.fillText(token.Token, token.X * canvas.width, token.Y * canvas.height);
     }
 }
 
@@ -70,8 +70,8 @@ function send() {
         "ClientID": clientId,
         "PuzzleID": puzzleId,
         "X": tokens[clientId].X,
-        "Y": tokens[clientId].Y}
-    );
+        "Y": tokens[clientId].Y
+    });
     if (!timerExists) {
         setTimeout(() => {
             if (dataToSend !== null) {
