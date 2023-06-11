@@ -3,5 +3,10 @@
     background-size: cover;
 }
 #ghci {
+    font-size: 13pt;
+    padding: 1em;
+    margin: 1em;
+    background-color: black;
+    color: springgreen;
     font: monospace;
 }
