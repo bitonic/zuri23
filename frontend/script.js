@@ -28,7 +28,10 @@ function render() {
     }
 }
 
-const socket = new WebSocket("ws://localhost:8001/ws");
+const wsUrl = new URL('/ws', window.location.href);
+wsUrl.protocol = wsUrl.protocol.replace('http', 'ws');
+wsUrl.href
+const socket = new WebSocket(wsUrl.href);
 
 socket.addEventListener("message", (event) => {
 	console.log("message:", event.data);
