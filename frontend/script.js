@@ -1,15 +1,16 @@
+
 const canvas = document.getElementById("notebook");
 canvas.style.cursor = 'none';
 const ctx = canvas.getContext("2d");
-
-var tokens = [
-    { txt: "...", X: 50 + Math.random() * 100, Y: 50 + Math.random() * 500 },
-]
 
 ctx.fillStyle = "rgb(0, 100, 100)";
 ctx.font = "30px monospace";
 var clientId = 0;
 var puzzleId = -1;
+
+var tokens = [
+    { txt: "...", X: 50 + Math.random() * 100, Y: 50 + Math.random() * 500 },
+];
 
 canvas.addEventListener("mousemove", e => {
     const rect = canvas.getBoundingClientRect();
@@ -31,7 +32,7 @@ const socket = new WebSocket("ws://localhost:8001/ws");
 
 socket.addEventListener("message", (event) => {
 	console.log("message:", event.data);
-        const obj = event.data;
+        const obj = JSON.parse(event.data);
         tokens = obj.Tokens;
 
         if (obj.PuzzleID > puzzleId) {
