@@ -76,7 +76,7 @@ function send() {
                 socket.send(dataToSend);
                 dataToSend = null;
             }
-        }, 100);
+        }, 25);
     }
 }
 
