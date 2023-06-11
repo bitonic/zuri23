@@ -36,12 +36,17 @@ const socket = new WebSocket(wsUrl.href);
 socket.addEventListener("message", (event) => {
 	console.log("message:", event.data);
         const obj = JSON.parse(event.data);
-        tokens = obj.Tokens;
+        for (let i in obj.Tokens) {
+            if (i != clientId) {
+                tokens[i] = obj.Tokens[i];
+            }
+        }
 
         if (obj.PuzzleID > puzzleId) {
 	        // New puzzle!
 	        puzzleId = obj.PuzzleID;
 	        clientId = Math.floor(Math.random() * tokens.length);
+                tokens = obj.Tokens;
 	        document.getElementById("goal").innerHTML = obj.PuzzleGoal
 
 	        console.log("clientId: ", clientId);
