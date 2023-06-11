@@ -142,8 +142,8 @@ var (
 		},
 	}
 
-	evalReqs  = make(chan string, 16)
-	evalResps = make(chan string)
+	evalReqs  = make(chan string, 512)
+	evalResps = make(chan string, 16)
 
 	control = make(chan string)
 
@@ -234,7 +234,14 @@ func (s *puzzleState) run() {
 				" ")
 
 			s.levelClear = slices.Equal(tokens, s.tokens)
-			evalReqs <- expr
+			if s.levelClear {
+				log.Printf("level clear!")
+			}
+
+			select {
+			case evalReqs <- expr:
+			default:
+			}
 
 			r := postResponse{
 				GHCIOutput: s.ghciOut,
@@ -300,7 +307,7 @@ func (s *puzzleState) run() {
 
 		case u := <-updates:
 			if s.levelStarted && !s.levelClear && u.puzzleID == s.currentPuzzle && u.tokenID >= 0 && u.tokenID < len(s.tokens) {
-				log.Printf("update[%d]: %+v", u.tokenID, u.loc)
+				//log.Printf("update[%d]: %+v", u.tokenID, u.loc)
 				s.tokens[u.tokenID].tokenLoc = u.loc
 
 			}
