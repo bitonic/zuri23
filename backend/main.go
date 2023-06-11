@@ -132,7 +132,7 @@ func (s *puzzleState) run() {
 		select {
 		case <-trigger:
 			r := postResponse{
-				GHCIOutput: s.expr + ": " + s.ghciOut,
+				GHCIOutput: "λ> " + s.expr + "\n" + s.ghciOut,
 				PuzzleGoal: s.goal,
 				Tokens:     slices.Clone(s.tokens),
 			}
