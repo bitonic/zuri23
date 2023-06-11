@@ -176,7 +176,7 @@ func handlePost(w http.ResponseWriter, req *http.Request) {
 }
 
 func evaluate(input string) string {
-	out, err := exec.Command("/usr/bin/ghci", "-e", input).CombinedOutput()
+	out, err := exec.Command("/usr/bin/env", "ghci", "-e", input).CombinedOutput()
 	if err != nil {
 		return string(out) + "(" + err.Error() + ")"
 	}
