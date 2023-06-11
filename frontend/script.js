@@ -56,12 +56,23 @@ socket.addEventListener("message", (event) => {
         render();
 })
 
-async function send() {
-	socket.send(
-		JSON.stringify({
-	            "ClientID": clientId,
-	            "PuzzleID": puzzleId,
-	            "X": tokens[clientId].X,
-	            "Y": tokens[clientId].Y}),
-        );
+// A client update waiting to be sent to the server
+var dataToSend = null;
+
+function send() {
+    const timerExists = dataToSend !== null;
+    dataToSend = JSON.stringify({
+        "ClientID": clientId,
+        "PuzzleID": puzzleId,
+        "X": tokens[clientId].X,
+        "Y": tokens[clientId].Y}
+    );
+    if (!timerExists) {
+        setTimeout(() => {
+            if (dataToSend !== null) {
+                socket.send(dataToSend);
+                dataToSend = null;
+            }
+        }, 100);
+    }
 }
