@@ -83,14 +83,14 @@ var (
 		{
 			goal: "32",
 			tokens: []puzzleToken{
-				{Token: "iterate", tokenLoc: tokenLoc{0.5, 0.5}},
-				{Token: "(", tokenLoc: tokenLoc{0.5, 0.5}},
-				{Token: "join", tokenLoc: tokenLoc{0.5, 0.5}},
-				{Token: "(+)", tokenLoc: tokenLoc{0.5, 0.5}},
-				{Token: ")", tokenLoc: tokenLoc{0.5, 0.5}},
-				{Token: "1", tokenLoc: tokenLoc{0.5, 0.5}},
-				{Token: "!!", tokenLoc: tokenLoc{0.5, 0.5}},
-				{Token: "5", tokenLoc: tokenLoc{0.5, 0.5}},
+				{Token: "iterate", tokenLoc: tokenLoc{0.7, 0.25}},
+				{Token: "(", tokenLoc: tokenLoc{0.71, 0.44}},
+				{Token: "join", tokenLoc: tokenLoc{0.27, 0.29}},
+				{Token: "(+)", tokenLoc: tokenLoc{0.59, 0.62}},
+				{Token: ")", tokenLoc: tokenLoc{0.5, 0.18}},
+				{Token: "1", tokenLoc: tokenLoc{0.14, 0.59}},
+				{Token: "!!", tokenLoc: tokenLoc{0.44, 0.46}},
+				{Token: "5", tokenLoc: tokenLoc{0.14, 0.25}},
 			},
 		},
 		{
