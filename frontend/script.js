@@ -1,10 +1,6 @@
 
 const canvas = document.getElementById("notebook");
 canvas.style.cursor = 'none';
-const ctx = canvas.getContext("2d");
-
-ctx.fillStyle = "rgb(0, 100, 100)";
-ctx.font = "30px monospace";
 var clientId = 0;
 var puzzleId = -1;
 
@@ -21,6 +17,9 @@ canvas.addEventListener("mousemove", e => {
 });
 
 function render() {
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "rgb(0, 100, 100)";
+    ctx.font = "30px monospace";
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     for (let i in tokens) {
         const token = tokens[i];
@@ -76,3 +75,13 @@ function send() {
         }, 100);
     }
 }
+
+function resizeCanvas() {
+    // Enforce 2 aspect ratio
+    canvas.height = canvas.clientHeight
+    canvas.width = canvas.clientHeight*2
+    render();
+}
+
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
