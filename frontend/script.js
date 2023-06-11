@@ -28,7 +28,9 @@ async function send() {
             method: 'POST',
             body: JSON.stringify(tokens[clientId]),
         });
-        document.getElementById("ghci").innerHTML = await result.json();
+        const obj = await result.json();
+        console.log(obj);
+        document.getElementById("ghci").innerHTML = obj.GHCIOutput;
     } finally {
         setTimeout(send, 100);
     }
