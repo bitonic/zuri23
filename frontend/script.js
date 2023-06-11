@@ -22,12 +22,15 @@ canvas.addEventListener("mousemove", e => {
         ctx.fillText(token.txt, token.x, token.y);
     }
 });
-function send() {
-    fetch('/post', {
-        method: 'POST',
-        body: JSON.stringify(tokens[clientId]),
-    })
-    .then(x => document.getElementById("ghci").innerHTML = x.json())
-    .finally(() => setTimeout(send, 100));
+async function send() {
+    try {
+        const result = await fetch('/post', {
+            method: 'POST',
+            body: JSON.stringify(tokens[clientId]),
+        });
+        document.getElementById("ghci").innerHTML = await result.json();
+    } finally {
+        setTimeout(send, 100);
+    }
 }
 send();
