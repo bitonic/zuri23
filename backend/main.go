@@ -96,13 +96,13 @@ var (
 		{
 			goal: "e",
 			tokens: []puzzleToken{
-				{Token: "succ", tokenLoc: tokenLoc{0.5, 0.5}},
-				{Token: "$", tokenLoc: tokenLoc{0.5, 0.5}},
-				{Token: "sum", tokenLoc: tokenLoc{0.5, 0.5}},
-				{Token: "$", tokenLoc: tokenLoc{0.5, 0.5}},
-				{Token: "scanl1", tokenLoc: tokenLoc{0.5, 0.5}},
-				{Token: "(/)", tokenLoc: tokenLoc{0.5, 0.5}},
-				{Token: "[1..100]", tokenLoc: tokenLoc{0.5, 0.5}},
+				{Token: "succ", tokenLoc: tokenLoc{0.14, 0.77}},
+				{Token: "$", tokenLoc: tokenLoc{0.45, 0.49}},
+				{Token: "sum", tokenLoc: tokenLoc{0.79, 0.18}},
+				{Token: "$", tokenLoc: tokenLoc{0.52, 0.48}},
+				{Token: "scanl1", tokenLoc: tokenLoc{0.76, 0.79}},
+				{Token: "(/)", tokenLoc: tokenLoc{0.45, 0.85}},
+				{Token: "[1..100]", tokenLoc: tokenLoc{0.15, 0.25}},
 			},
 		},
 		{
