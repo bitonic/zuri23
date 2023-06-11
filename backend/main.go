@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"log"
@@ -10,7 +11,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"bytes"
 
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
@@ -305,11 +305,13 @@ func (s *puzzleState) run() {
 				s.tokens[u.tokenID].tokenLoc = u.loc
 
 			}
+
 			updateClients()
 
-		case s := <-subChan:
-			subs[subId] = s
+		case subReq := <-subChan:
+			subs[subId] = subReq
 			subId += 1
+			log.Printf("%d/%d players", len(subs), len(s.tokens))
 			updateClients()
 
 		case s.ghciOut = <-evalResps:
