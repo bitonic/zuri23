@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"bytes"
 
 	"golang.org/x/exp/slices"
 	"golang.org/x/net/websocket"
@@ -283,7 +284,9 @@ func evaluate(input string) string {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
-	out, err := exec.CommandContext(ctx, "/usr/bin/env", "ghci", "-e", input).CombinedOutput()
+	cmdCtx := exec.CommandContext(ctx, "/usr/bin/env", "runhaskell")
+	cmdCtx.Stdin = bytes.NewReader([]byte("import Control.Monad\nsolution = " + input + "\nmain = print solution"))
+	out, err := cmdCtx.CombinedOutput()
 	if err != nil {
 		return string(out) + "(" + err.Error() + ")"
 	}
