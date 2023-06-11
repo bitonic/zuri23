@@ -121,18 +121,18 @@ func (s *puzzleState) run() {
 	subId := int64(0)
 	subs := map[int64]subReq{}
 
-	trigger := make(chan struct{}, 1)
+	updateTrigger := make(chan struct{}, 1)
 
-	retrigger := func() {
+	updateClients := func() {
 		select {
-		case trigger <- struct{}{}:
+		case updateTrigger <- struct{}{}:
 		default:
 		}
 	}
 
 	for {
 		select {
-		case <-trigger:
+		case <-updateTrigger:
 			r := postResponse{
 				GHCIOutput: s.ghciOut,
 				PuzzleGoal: s.goal,
@@ -154,7 +154,7 @@ func (s *puzzleState) run() {
 				log.Printf("update[%d]: %+v", u.clientID, u.loc)
 				s.tokens[u.clientID].tokenLoc = u.loc
 			}
-			retrigger()
+			updateClients()
 
 			tokens := arrange(s.tokens)
 			expr := strings.Join(
@@ -165,10 +165,10 @@ func (s *puzzleState) run() {
 		case s := <-subChan:
 			subs[subId] = s
 			subId += 1
-			retrigger()
+			updateClients()
 
 		case s.ghciOut = <-evalResps:
-			retrigger()
+			updateClients()
 
 		}
 	}
