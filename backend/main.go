@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os/exec"
 	"strings"
-	"sync"
 	"time"
 
 	"golang.org/x/exp/maps"
@@ -318,6 +317,12 @@ func (s *puzzleState) run() {
 			subs[subId] = subReq
 			subId += 1
 			log.Printf("%d/%d players", len(subs), len(s.tokens))
+			if s.levelStarted {
+				// If we've started reassign on new players
+				// to "reassign" disconnected ones.
+				reassign()
+			}
+
 			updateClients()
 
 		case s.ghciOut = <-evalResps:
@@ -394,16 +399,15 @@ func ws(ws *websocket.Conn) {
 	tokenID := int(-1)
 
 	responses := make(chan postResponse, 5)
+	errs := make(chan error, 2)
 	stop := make(chan struct{})
 
-	var wg sync.WaitGroup
-	wg.Add(1)
 	go func() {
-		defer wg.Done()
 		for {
 			var bs []byte
 			err := websocket.Message.Receive(ws, &bs)
 			if err != nil {
+				errs <- err
 				return
 			}
 
@@ -418,19 +422,27 @@ func ws(ws *websocket.Conn) {
 				loc:      tokenLoc{postReq.X, postReq.Y},
 			}
 		}
-
 	}()
 
-	subChan <- subReq{responses, stop}
-	for r := range responses {
-		tokenID = r.TokenID // yeah it's racy.
-		bs, _ := json.Marshal(r)
-		if err := websocket.Message.Send(ws, string(bs)); err != nil {
-			close(stop)
-			break
+	go func() {
+		subChan <- subReq{responses, stop}
+		for r := range responses {
+			tokenID = r.TokenID // yeah it's racy.
+			bs, _ := json.Marshal(r)
+			if err := websocket.Message.Send(ws, string(bs)); err != nil {
+				errs <- err
+				break
+			}
 		}
-	}
-	ws.Close()
-	wg.Wait()
+		// Drain.
+		for range responses {
+		}
+		errs <- nil
+	}()
 
+	// Wait for either receive or send to fail.
+	<-errs
+	close(stop)
+	ws.Close()
+	<-errs
 }
