@@ -263,12 +263,9 @@ func ws(ws *websocket.Conn) {
 
 	subChan <- subReq{responses, stop}
 	for r := range responses {
-		//log.Printf("sending response: %q", r)
 		if err := websocket.Message.Send(ws, string(r)); err != nil {
 			close(stop)
 		}
-	}
-	for range responses {
 	}
 	ws.Close()
 	wg.Wait()
