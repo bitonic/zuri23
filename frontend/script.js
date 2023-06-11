@@ -24,6 +24,7 @@ canvas.addEventListener("mousemove", e => {
     tokens[clientId].X = e.pageX - rect.left;
     tokens[clientId].Y = e.pageY - rect.top;
     render();
+    send();
 });
 
 function render() {
@@ -34,17 +35,11 @@ function render() {
     }
 }
 
-async function send() {
-    try {
-        const result = await fetch('/post', {
-            method: 'POST',
-            body: JSON.stringify({
-	            "ClientID": clientId,
-	            "PuzzleID": puzzleId,
-	            "X": tokens[clientId].X,
-	            "Y": tokens[clientId].Y}),
-        });
-        const obj = await result.json();
+const socket = new WebSocket("ws://localhost:8001/ws");
+
+socket.addEventListener("message", (event) => {
+	console.log("message:", event.data);
+        const obj = event.data;
         tokens = obj.Tokens;
 
         if (obj.PuzzleID > puzzleId) {
@@ -57,8 +52,14 @@ async function send() {
         console.log(obj);
         document.getElementById("ghci").innerHTML = obj.GHCIOutput;
         render();
-    } finally {
-        setTimeout(send, 100);
-    }
+})
+
+async function send() {
+	socket.send(
+		JSON.stringify({
+	            "ClientID": clientId,
+	            "PuzzleID": puzzleId,
+	            "X": tokens[clientId].X,
+	            "Y": tokens[clientId].Y}),
+        );
 }
-send();

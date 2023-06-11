@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"golang.org/x/exp/slices"
+	"golang.org/x/net/websocket"
 )
 
 func main() {
@@ -21,6 +22,7 @@ func main() {
 	go s.run()
 
 	http.HandleFunc("/post", handlePost)
+	http.Handle("/ws", websocket.Handler(ws))
 	http.Handle("/", http.FileServer(http.Dir("../frontend")))
 	http.ListenAndServe("0.0.0.0:8001", http.DefaultServeMux)
 }
@@ -61,12 +63,19 @@ func mk(tokens ...string) puzzle {
 	})
 }
 
+type subReq struct {
+	responses chan []byte
+	stop      chan struct{}
+}
+
 var (
 	puzzles = []puzzle{
 		mk("foo", "bar", "baz"),
 	}
 
 	updates = make(chan clientUpdate, 32)
+
+	subChan = make(chan subReq)
 )
 
 type puzzleState struct {
@@ -95,18 +104,47 @@ func (s *puzzleState) run() {
 	ticks := time.NewTicker(100 * time.Millisecond)
 	//newRoundCountdown := 50
 
+	subId := int64(0)
+	subs := map[int64]subReq{}
+
+	trigger := make(chan struct{}, 1)
+
+	retrigger := func() {
+		select {
+		case trigger <- struct{}{}:
+		default:
+		}
+	}
+
 	for {
 		select {
+		case <-trigger:
+			r := postResponse{
+				GHCIOutput: s.ghciOut,
+				Tokens:     slices.Clone(s.tokens),
+			}
+			bs, _ := json.Marshal(r)
+			for id, sub := range subs {
+				select {
+				case sub.responses <- bs:
+				case <-sub.stop:
+					close(sub.responses)
+					delete(subs, id)
+				default:
+				}
+			}
+
 		case u := <-updates:
 			if u.puzzleID == s.currentPuzzle && u.clientID >= 0 && u.clientID < len(s.tokens) {
 				log.Printf("update[%d]: %+v", u.clientID, u.loc)
 				s.tokens[u.clientID].tokenLoc = u.loc
 			}
-			u.response <- postResponse{
-				GHCIOutput: s.ghciOut,
-				Tokens:     slices.Clone(s.tokens),
-			}
-			close(u.response)
+			retrigger()
+
+		case s := <-subChan:
+			subs[subId] = s
+			subId += 1
+			retrigger()
 
 		case <-ticks.C:
 			tokens := arrange(s.tokens)
@@ -114,6 +152,7 @@ func (s *puzzleState) run() {
 				Map(tokens, puzzleToken.token),
 				" ")
 			s.ghciOut = evaluate(expr)
+			retrigger()
 			//log.Printf("evaluate(%s): %s", expr, s.ghciOut)
 
 			/*
@@ -163,16 +202,7 @@ func handlePost(w http.ResponseWriter, req *http.Request) {
 	}
 	log.Printf("request: %+v", postReq)
 
-	resp := make(chan postResponse, 1)
-	updates <- clientUpdate{
-		puzzleID: 0,
-		clientID: postReq.ClientID,
-		loc:      tokenLoc{postReq.X, postReq.Y},
-		response: resp,
-	}
-	respJson, _ := json.Marshal(<-resp)
-	log.Printf("responding: %q", respJson)
-	w.Write(respJson)
+	w.WriteHeader(200)
 }
 
 func evaluate(input string) string {
@@ -181,4 +211,43 @@ func evaluate(input string) string {
 		return string(out) + "(" + err.Error() + ")"
 	}
 	return string(out)
+}
+
+func ws(ws *websocket.Conn) {
+	responses := make(chan []byte, 5)
+	stop := make(chan struct{})
+
+	go func() {
+		for {
+			var bs []byte
+			err := websocket.Message.Receive(ws, &bs)
+			if err != nil {
+				return
+			}
+
+			var postReq postRequest
+			err = json.Unmarshal(bs, &postReq)
+			if err != nil {
+				continue
+			}
+			updates <- clientUpdate{
+				puzzleID: 0,
+				clientID: postReq.ClientID,
+				loc:      tokenLoc{postReq.X, postReq.Y},
+			}
+		}
+
+	}()
+
+	subChan <- subReq{responses, stop}
+	for r := range responses {
+		//log.Printf("sending response: %q", r)
+		if err := websocket.Message.Send(ws, string(r)); err != nil {
+			close(stop)
+		}
+	}
+	for range responses {
+	}
+	ws.Close()
+
 }
