@@ -24,6 +24,8 @@ func main() {
 	go s.run()
 	go evaluator()
 
+	http.HandleFunc("/control", handleControl)
+
 	http.Handle("/ws", websocket.Handler(ws))
 	http.Handle("/", http.FileServer(http.Dir("../frontend")))
 	http.ListenAndServe("0.0.0.0:8001", http.DefaultServeMux)
@@ -142,6 +144,8 @@ var (
 	evalReqs  = make(chan string, 16)
 	evalResps = make(chan string)
 
+	control = make(chan string)
+
 	updates = make(chan clientUpdate, 32)
 
 	subChan = make(chan subReq)
@@ -152,6 +156,8 @@ type puzzleState struct {
 	ghciOut       string
 	tokens        []puzzleToken
 	goal          string
+	levelClear    bool
+	levelStarted  bool
 }
 
 func Map[A, B any](xs []A, f func(A) B) []B {
@@ -188,6 +194,14 @@ func (s *puzzleState) run() {
 	for {
 		select {
 		case <-updateTrigger:
+			tokens := arrange(s.tokens)
+			expr := strings.Join(
+				Map(tokens, puzzleToken.token),
+				" ")
+
+			s.levelClear = slices.Equal(tokens, s.tokens)
+			evalReqs <- expr
+
 			r := postResponse{
 				GHCIOutput: s.ghciOut,
 				PuzzleGoal: s.goal,
@@ -204,18 +218,39 @@ func (s *puzzleState) run() {
 				}
 			}
 
-		case u := <-updates:
-			if u.puzzleID == s.currentPuzzle && u.clientID >= 0 && u.clientID < len(s.tokens) {
-				log.Printf("update[%d]: %+v", u.clientID, u.loc)
-				s.tokens[u.clientID].tokenLoc = u.loc
+		case c := <-control:
+			switch c {
+			case "start":
+				s.levelStarted = true
+				log.Printf("started")
+			case "prev":
+				if s.currentPuzzle-1 >= 0 {
+					s.levelClear = false
+					s.currentPuzzle--
+					s.tokens = slices.Clone(puzzles[s.currentPuzzle].tokens)
+					s.goal = puzzles[s.currentPuzzle].goal
+					log.Printf("moved to puzzle %d", s.currentPuzzle)
+				}
+			case "next":
+				if s.currentPuzzle+1 < len(puzzles) {
+					s.levelClear = false
+					s.currentPuzzle++
+					s.tokens = slices.Clone(puzzles[s.currentPuzzle].tokens)
+					s.goal = puzzles[s.currentPuzzle].goal
+					log.Printf("moved to puzzle %d", s.currentPuzzle)
+				}
+			default:
+				log.Printf("unknown control command %q", c)
 			}
 			updateClients()
 
-			tokens := arrange(s.tokens)
-			expr := strings.Join(
-				Map(tokens, puzzleToken.token),
-				" ")
-			evalReqs <- expr
+		case u := <-updates:
+			if s.levelStarted && !s.levelClear && u.puzzleID == s.currentPuzzle && u.clientID >= 0 && u.clientID < len(s.tokens) {
+				log.Printf("update[%d]: %+v", u.clientID, u.loc)
+				s.tokens[u.clientID].tokenLoc = u.loc
+
+			}
+			updateClients()
 
 		case s := <-subChan:
 			subs[subId] = s
@@ -237,6 +272,10 @@ func (s *puzzleState) next() bool {
 
 	s.tokens = slices.Clone(puzzles[s.currentPuzzle].tokens)
 	return true
+}
+
+func handleControl(w http.ResponseWriter, req *http.Request) {
+	control <- req.URL.RawQuery
 }
 
 func evaluate(input string) string {
@@ -265,9 +304,9 @@ func evaluator() {
 				log.Printf("evaluating %q", current)
 				result := evaluate(current)
 				evalResps <- "λ> " + current + "\n" + result
+				last = current
+				current = ""
 			}
-			last = current
-			current = ""
 		}
 	}
 }
