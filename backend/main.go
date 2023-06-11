@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os/exec"
@@ -22,7 +21,6 @@ func main() {
 	}
 	go s.run()
 
-	http.HandleFunc("/post", handlePost)
 	http.Handle("/ws", websocket.Handler(ws))
 	http.Handle("/", http.FileServer(http.Dir("../frontend")))
 	http.ListenAndServe("0.0.0.0:8001", http.DefaultServeMux)
@@ -194,20 +192,6 @@ type postResponse struct {
 	PuzzleID   int
 	PuzzleGoal string
 	Tokens     []puzzleToken
-}
-
-func handlePost(w http.ResponseWriter, req *http.Request) {
-	defer req.Body.Close()
-	reqBody, _ := ioutil.ReadAll(req.Body)
-
-	var postReq postRequest
-	err := json.Unmarshal(reqBody, &postReq)
-	if err != nil {
-		panic(err)
-	}
-	log.Printf("request: %+v", postReq)
-
-	w.WriteHeader(200)
 }
 
 func evaluate(input string) string {
