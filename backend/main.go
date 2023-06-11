@@ -59,18 +59,6 @@ type clientUpdate struct {
 	response chan postResponse
 }
 
-func mk(goal string, tokens ...string) puzzle {
-	return puzzle{
-		goal: goal,
-		tokens: Map(tokens, func(t string) puzzleToken {
-			return puzzleToken{
-				tokenLoc: tokenLoc{50, 50},
-				Token:    t,
-			}
-		}),
-	}
-}
-
 type subReq struct {
 	responses chan []byte
 	stop      chan struct{}
@@ -78,12 +66,76 @@ type subReq struct {
 
 var (
 	puzzles = []puzzle{
-		mk("[0,1,2,3,4]", "take", "5", "$", "iterate", "(+1)", "0"),
-		mk("32", "iterate", "(", "join", "(+)", ")", "1", "!!", "5"),
-		mk("e", "succ", "$", "sum", "$", "scanl1", "(/)", "[1..100]"),
-		mk("8", "let", "a", "+", "b", "=", "a", "*", "b", "in", "2", "+", "2", "+", "2"),
-		mk("\"fin\"", "take", "3", "$", "drop", "2", "$", "show", "$", "1", "/", "0"),
-	}
+		puzzle{
+			goal: "[0,1,2,3,4]",
+			tokens: []puzzleToken{
+				puzzleToken{Token: "take",     tokenLoc: tokenLoc{50, 50}},
+				puzzleToken{Token: "5",        tokenLoc: tokenLoc{50, 50}},
+				puzzleToken{Token: "$",        tokenLoc: tokenLoc{50, 50}},
+				puzzleToken{Token: "iterate",  tokenLoc: tokenLoc{50, 50}},
+				puzzleToken{Token: "(+1)",     tokenLoc: tokenLoc{50, 50}},
+				puzzleToken{Token: "0",        tokenLoc: tokenLoc{50, 50}},
+			},
+		},
+		puzzle{
+			goal: "32",
+			tokens: []puzzleToken{
+				puzzleToken{Token: "iterate",  tokenLoc: tokenLoc{50, 50}},
+				puzzleToken{Token: "(",        tokenLoc: tokenLoc{50, 50}},
+				puzzleToken{Token: "join",     tokenLoc: tokenLoc{50, 50}},
+				puzzleToken{Token: "(+)",      tokenLoc: tokenLoc{50, 50}},
+				puzzleToken{Token: ")",        tokenLoc: tokenLoc{50, 50}},
+				puzzleToken{Token: "1",        tokenLoc: tokenLoc{50, 50}},
+				puzzleToken{Token: "!!",       tokenLoc: tokenLoc{50, 50}},
+				puzzleToken{Token: "5",        tokenLoc: tokenLoc{50, 50}},
+		},
+		puzzle{
+			goal: "e",
+			tokens: []puzzleToken{
+				puzzleToken{Token: "succ",     tokenLoc: tokenLoc{50, 50}},
+				puzzleToken{Token: "$",        tokenLoc: tokenLoc{50, 50}},
+				puzzleToken{Token: "sum",      tokenLoc: tokenLoc{50, 50}},
+				puzzleToken{Token: "$",        tokenLoc: tokenLoc{50, 50}},
+				puzzleToken{Token: "scanl1",   tokenLoc: tokenLoc{50, 50}},
+				puzzleToken{Token: "(/)",      tokenLoc: tokenLoc{50, 50}},
+				puzzleToken{Token: "[1..100]", tokenLoc: tokenLoc{50, 50}},
+			},
+		},
+		puzzle{
+			goal: "8",
+			tokens: []puzzleToken{
+				puzzleToken{Token: "let",      tokenLoc: tokenLoc{50, 50}},
+				puzzleToken{Token: "a",        tokenLoc: tokenLoc{50, 50}},
+				puzzleToken{Token: "+",        tokenLoc: tokenLoc{50, 50}},
+				puzzleToken{Token: "b",        tokenLoc: tokenLoc{50, 50}},
+				puzzleToken{Token: "=",        tokenLoc: tokenLoc{50, 50}},
+				puzzleToken{Token: "a",        tokenLoc: tokenLoc{50, 50}},
+				puzzleToken{Token: "*",        tokenLoc: tokenLoc{50, 50}},
+				puzzleToken{Token: "b",        tokenLoc: tokenLoc{50, 50}},
+				puzzleToken{Token: "in",       tokenLoc: tokenLoc{50, 50}},
+				puzzleToken{Token: "2",        tokenLoc: tokenLoc{50, 50}},
+				puzzleToken{Token: "+",        tokenLoc: tokenLoc{50, 50}},
+				puzzleToken{Token: "2",        tokenLoc: tokenLoc{50, 50}},
+				puzzleToken{Token: "+",        tokenLoc: tokenLoc{50, 50}},
+				puzzleToken{Token: "2",        tokenLoc: tokenLoc{50, 50}},
+			},
+		},
+		puzzle{
+			goal: "\"fin\"",
+			tokens: []puzzleToken{
+				puzzleToken{Token: "take",     tokenLoc: tokenLoc{50, 50}},
+				puzzleToken{Token: "3",        tokenLoc: tokenLoc{50, 50}},
+				puzzleToken{Token: "$",        tokenLoc: tokenLoc{50, 50}},
+				puzzleToken{Token: "drop",     tokenLoc: tokenLoc{50, 50}},
+				puzzleToken{Token: "2",        tokenLoc: tokenLoc{50, 50}},
+				puzzleToken{Token: "$",        tokenLoc: tokenLoc{50, 50}},
+				puzzleToken{Token: "show",     tokenLoc: tokenLoc{50, 50}},
+				puzzleToken{Token: "$",        tokenLoc: tokenLoc{50, 50}},
+				puzzleToken{Token: "1",        tokenLoc: tokenLoc{50, 50}},
+				puzzleToken{Token: "/",        tokenLoc: tokenLoc{50, 50}},
+				puzzleToken{Token: "0",        tokenLoc: tokenLoc{50, 50}},
+			},
+		}
 
 	evalReqs  = make(chan string, 16)
 	evalResps = make(chan string)
