@@ -5,34 +5,18 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"math"
 	"math/rand"
 	"net/http"
 	"os/exec"
 	"strings"
+	"sync"
 	"time"
-	"math"
 
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"golang.org/x/net/websocket"
 )
-
-func main() {
-	s := &puzzleState{
-		currentPuzzle: 0,
-		ghciOut:       "<n/a>",
-		tokens:        slices.Clone(puzzles[0].tokens),
-		goal:          puzzles[0].goal,
-	}
-	go s.run()
-	go evaluator()
-
-	http.HandleFunc("/control", handleControl)
-
-	http.Handle("/ws", websocket.Handler(ws))
-	http.Handle("/", http.FileServer(http.Dir("frontend")))
-	http.ListenAndServe("0.0.0.0:8001", http.DefaultServeMux)
-}
 
 type tokenLoc struct {
 	X, Y float64
@@ -40,40 +24,26 @@ type tokenLoc struct {
 
 type puzzleToken struct {
 	tokenLoc
-	Token     string
-	imageFile string
-}
-
-func (t puzzleToken) token() string {
-	return t.Token
-}
-
-func (t puzzleToken) Loc() tokenLoc {
-	return t.tokenLoc
+	Token string
 }
 
 type puzzle struct {
-	goal   string
-	tokens []puzzleToken
+	goal        string
+	startTokens []puzzleToken
 }
 
-type clientUpdate struct {
-	puzzleID int
-	tokenID  int
-	loc      tokenLoc
-	response chan postResponse
-}
-
-type subReq struct {
-	responses chan postResponse
-	stop      chan struct{}
+type tokenUpdate struct {
+	PuzzleID int
+	TokenID  int
+	X        float64
+	Y        float64
 }
 
 var (
 	puzzles = []puzzle{
 		{
 			goal: "[0,1,2,3,4]",
-			tokens: []puzzleToken{
+			startTokens: []puzzleToken{
 				{Token: "take", tokenLoc: tokenLoc{0.76, 0.58}},
 				{Token: "5", tokenLoc: tokenLoc{0.17, 0.56}},
 				{Token: "$", tokenLoc: tokenLoc{0.36, 0.7}},
@@ -84,7 +54,7 @@ var (
 		},
 		{
 			goal: "32",
-			tokens: []puzzleToken{
+			startTokens: []puzzleToken{
 				{Token: "iterate", tokenLoc: tokenLoc{0.7, 0.25}},
 				{Token: "(", tokenLoc: tokenLoc{0.71, 0.44}},
 				{Token: "join", tokenLoc: tokenLoc{0.27, 0.29}},
@@ -97,7 +67,7 @@ var (
 		},
 		{
 			goal: "e",
-			tokens: []puzzleToken{
+			startTokens: []puzzleToken{
 				{Token: "succ", tokenLoc: tokenLoc{0.14, 0.77}},
 				{Token: "$", tokenLoc: tokenLoc{0.45, 0.49}},
 				{Token: "sum", tokenLoc: tokenLoc{0.79, 0.18}},
@@ -109,7 +79,7 @@ var (
 		},
 		{
 			goal: "8",
-			tokens: []puzzleToken{
+			startTokens: []puzzleToken{
 				{Token: "let", tokenLoc: tokenLoc{0.5824421466621129, 0.9569263934812886}},
 				{Token: "a", tokenLoc: tokenLoc{0.6834105749801536, 0.6861474266283613}},
 				{Token: "+", tokenLoc: tokenLoc{0.6352210978283614, 0.8146526990331403}},
@@ -126,7 +96,7 @@ var (
 		},
 		{
 			goal: "\"fin\"",
-			tokens: []puzzleToken{
+			startTokens: []puzzleToken{
 				{Token: "take", tokenLoc: tokenLoc{0.76, 0.65}},
 				{Token: "3", tokenLoc: tokenLoc{0.65, 0.31}},
 				{Token: "$", tokenLoc: tokenLoc{0.13, 0.82}},
@@ -136,50 +106,49 @@ var (
 				{Token: "show", tokenLoc: tokenLoc{0.69, 0.83}},
 				{Token: "$", tokenLoc: tokenLoc{0.2, 0.88}},
 				{Token: "1", tokenLoc: tokenLoc{0.5, 0.31}},
-				{Token: "/", tokenLoc: tokenLoc{0.46, 0.64}},
+				{Token: "/", tokenLoc: tokenLoc{0.8, 0.9}},
 				{Token: "0", tokenLoc: tokenLoc{0.41, 0.31}},
 			},
 		},
 	}
 
-	evalReqs  = make(chan string, 512)
-	evalResps = make(chan string, 16)
-
-	control = make(chan string)
-
-	updates = make(chan clientUpdate, 32)
-
-	subChan = make(chan subReq)
+	tokenUpdates = make(chan tokenUpdate, 128)
 )
 
-type puzzleState struct {
+type playerId int64
+
+// update we send to the player
+type playerResp struct {
+	PuzzleGoal string
+	GHCIOutput string
+	Tokens     []puzzleToken
+	PuzzleID   int
+	Players    int
+	Lobby      int
+	TokenID    int
+	Started    bool
+	LevelClear bool
+}
+
+type player struct {
+	updates chan playerResp
+}
+
+type state struct {
+	mu            sync.RWMutex
+	playerIdCount int64
+	// index into `puzzles`
 	currentPuzzle int
-	ghciOut       string
-	tokens        []puzzleToken
-	goal          string
-	levelClear    bool
-	levelStarted  bool
-}
-
-func Map[A, B any](xs []A, f func(A) B) []B {
-	out := make([]B, len(xs))
-	for i := range xs {
-		out[i] = f(xs[i])
-	}
-	return out
-}
-
-func arrange(tokens []puzzleToken) []puzzleToken {
-	filteredTokens := []puzzleToken {}
-        for i := range tokens {
-            if math.Abs(tokens[i].Y - 0.5) < 0.1 {
-                filteredTokens = append(filteredTokens, tokens[i])
-            }
-        }
-	slices.SortFunc(filteredTokens, func(a, b puzzleToken) bool {
-		return a.X < b.X
-	})
-	return filteredTokens
+	// all players
+	players map[playerId]player
+	// currently playing. if -1, not playing. if positive, the token.
+	active map[playerId]int
+	// as currently arranged by the clients
+	tokens []puzzleToken
+	// current output
+	ghciOut string
+	// we're playing
+	started bool
 }
 
 func shuffledKeys[K comparable, V any](m map[K]V) []K {
@@ -188,177 +157,240 @@ func shuffledKeys[K comparable, V any](m map[K]V) []K {
 	return keys
 }
 
-func (s *puzzleState) run() {
-	//newRoundCountdown := 50
+// modifications not protected by lock
+// --------------------------------------------------------------------
 
-	subId := int64(0)
-	subs := map[int64]subReq{}
+func (s *state) reshuffleActive() {
+	for pid := range s.players {
+		s.active[pid] = -1
+	}
+	pids := shuffledKeys(s.players)
+	for i, pid := range pids {
+		if i < len(s.tokens) {
+			s.active[pid] = i
+		} else {
+			s.active[pid] = -1
+		}
+	}
+}
 
-	updateTrigger := make(chan struct{}, 1)
+// stops the game, resets the players
+func (s *state) stop() {
+	s.started = false
+	s.reshuffleActive()
+}
 
-	updateClients := func() {
+// starts the game, fills the active players
+func (s *state) start() {
+	s.started = true
+	s.reshuffleActive()
+}
+
+func (s *state) afterLevelChange() {
+	s.started = false
+	s.tokens = slices.Clone(puzzles[s.currentPuzzle].startTokens)
+	s.ghciOut = "<n/a>"
+	s.reshuffleActive()
+}
+
+func (s *state) next() {
+	s.currentPuzzle++
+	if s.currentPuzzle > len(puzzles) {
+		s.currentPuzzle--
+		return
+	}
+	s.afterLevelChange()
+}
+
+func (s *state) prev() {
+	s.currentPuzzle--
+	if s.currentPuzzle < 0 {
+		s.currentPuzzle--
+		return
+	}
+	s.afterLevelChange()
+}
+
+func (s *state) addPlayer() (playerId, *player) {
+	s.playerIdCount++
+	pid := playerId(s.playerIdCount)
+	ch := make(chan playerResp, 5)
+	p := player{updates: ch}
+	s.players[pid] = p
+
+	occupied := make([]bool, len(s.tokens))
+	for _, tok := range s.active {
+		if tok >= 0 {
+			occupied[tok] = true
+		}
+	}
+	firstFreeToken := -1
+	for tok, occ := range occupied {
+		if !occ {
+			firstFreeToken = tok
+			break
+		}
+	}
+	s.active[pid] = firstFreeToken
+
+	log.Printf("added player %v with token %v", pid, s.active[pid])
+
+	return pid, &p
+}
+
+func (s *state) removePlayer(pid playerId) {
+	delete(s.players, pid)
+	freeTok := s.active[pid]
+	// replace with somebody else
+	if freeTok >= 0 {
+		pids := shuffledKeys(s.players)
+		for _, pid := range pids {
+			if s.active[pid] < 0 {
+				s.active[pid] = freeTok
+			}
+		}
+	}
+}
+
+// end of lock-unprotected stuff
+// --------------------------------------------------------------------
+
+func (s *state) control(w http.ResponseWriter, req *http.Request) {
+	log.Printf("control enter")
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	log.Printf("control locked")
+	c := req.URL.RawQuery
+	switch c {
+	case "start":
+		s.start()
+	case "stop":
+		s.stop()
+	case "prev":
+		s.prev()
+	case "next":
+		s.next()
+	default:
+		log.Printf("unknown control command %q", c)
+	}
+	log.Printf("control done")
+}
+
+func tokenStr(tokens []puzzleToken) string {
+	return strings.Join(Map(tokens, func(t *puzzleToken) string { return t.Token }), " ")
+}
+
+func (s *state) sendUpdatesOnce() {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	puzzle := &puzzles[s.currentPuzzle]
+	update := playerResp{
+		PuzzleGoal: puzzle.goal,
+		Tokens:     slices.Clone(s.tokens),
+		GHCIOutput: s.ghciOut,
+		Started:    s.started,
+		PuzzleID:   s.currentPuzzle,
+	}
+	sendUpdate := func(pid playerId, p *player) {
+		thisUpdate := update
+		thisUpdate.TokenID = s.active[pid]
+		// log.Printf("sending update %+v", thisUpdate)
 		select {
-		case updateTrigger <- struct{}{}:
+		case p.updates <- thisUpdate:
 		default:
 		}
 	}
+	for pid, p := range s.players {
+		sendUpdate(pid, &p)
+	}
+}
 
-	assignments := map[int64]int{} // Player to tokenID assignments
-	unassigned := map[int]bool{}   // Unassigned tokens
+func (s *state) sendUpdates() {
+	for {
+		// log.Printf("sending updates")
+		s.sendUpdatesOnce()
+		time.Sleep(25 * time.Millisecond)
+	}
+}
 
-	reassign := func() {
-		defer log.Printf("reassign: assignments=%v, unassigned=%v", assignments, unassigned)
+func (s *state) processTokenUpdate(update *tokenUpdate) {
+	// TODO make rlock
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
-		available := map[int64]bool{} // The still available players
-		for id := range subs {
-			if _, ok := assignments[id]; !ok {
-				available[id] = true
-			}
-		}
-		if len(available) == 0 {
-			return
-		}
-		availableShuffled := shuffledKeys(available)
-		for _, tokenId := range shuffledKeys(unassigned) {
-			if len(availableShuffled) == 0 {
+	if s.currentPuzzle != update.PuzzleID {
+		log.Printf("bad puzzle id, %v vs %v", s.currentPuzzle, update.PuzzleID)
+		return
+	}
+
+	token := s.tokens[update.TokenID]
+	log.Printf("processing update for token %v (%s)", update.TokenID, token.Token)
+
+	// log.Printf("tokens before %+v", s.tokens)
+	s.tokens[update.TokenID].X = update.X
+	s.tokens[update.TokenID].Y = update.Y
+	// log.Printf("tokens before %+v", s.tokens)
+
+}
+
+func (s *state) processTokenUpdates() {
+	for {
+		update := <-tokenUpdates
+		s.processTokenUpdate(&update)
+	}
+}
+
+func (s *state) ws(ws *websocket.Conn) {
+	s.mu.Lock()
+	pid, p := s.addPlayer()
+	s.mu.Unlock()
+
+	errs := make(chan error, 2)
+
+	go func() {
+		for {
+			var bs []byte
+			err := websocket.Message.Receive(ws, &bs)
+			if err != nil {
+				errs <- err
 				return
 			}
-			id := availableShuffled[0]
-			availableShuffled = availableShuffled[1:]
-			assignments[id] = tokenId
-			unassigned[tokenId] = false
-		}
-	}
-	unassign := func() {
-		for _, tokenId := range maps.Keys(unassigned) {
-			unassigned[tokenId] = true
-			delete(assignments, int64(tokenId))
-		}
-	}
 
-	for {
-		select {
-		case <-updateTrigger:
-			tokens := arrange(s.tokens)
-			expr := strings.Join(
-				Map(tokens, puzzleToken.token),
-				" ")
-
-			s.levelClear = slices.Equal(tokens, s.tokens)
-			if s.levelClear {
-				log.Printf("level clear!")
+			var req tokenUpdate
+			err = json.Unmarshal(bs, &req)
+			if err != nil {
+				log.Printf("could not decode: %+v\n", err)
+				continue
 			}
 
 			select {
-			case evalReqs <- expr:
+			case tokenUpdates <- req:
 			default:
+				log.Printf("dropping token update\n")
 			}
-
-			r := postResponse{
-				GHCIOutput: s.ghciOut,
-				PuzzleGoal: s.goal,
-				LevelClear: s.levelClear,
-				PuzzleID:   s.currentPuzzle,
-				Tokens:     slices.Clone(s.tokens),
-			}
-			for id, sub := range subs {
-				if tokenID, ok := assignments[id]; ok {
-					r.TokenID = tokenID
-				} else {
-					r.TokenID = -1
-				}
-				select {
-				case sub.responses <- r:
-				case <-sub.stop:
-					close(sub.responses)
-					delete(subs, id)
-					log.Printf("[%d] disconnected, %d/%d players", id, len(subs), len(s.tokens))
-					if r.TokenID >= 0 {
-						delete(assignments, id)
-						unassigned[r.TokenID] = true
-						reassign()
-					}
-				default:
-				}
-			}
-
-		case c := <-control:
-			switch c {
-			case "start":
-				s.levelStarted = true
-				assignments = map[int64]int{}
-				unassigned = map[int]bool{}
-				for i := range s.tokens {
-					unassigned[i] = true
-				}
-				reassign()
-				log.Printf("started")
-			case "prev":
-				if s.currentPuzzle-1 >= 0 {
-					s.levelClear = false
-					s.levelStarted = false
-					s.currentPuzzle--
-					s.tokens = slices.Clone(puzzles[s.currentPuzzle].tokens)
-					s.goal = puzzles[s.currentPuzzle].goal
-					log.Printf("moved to puzzle %d", s.currentPuzzle)
-				}
-				unassign()
-			case "next":
-				if s.currentPuzzle+1 < len(puzzles) {
-					s.levelClear = false
-					s.levelStarted = false
-					s.currentPuzzle++
-					s.tokens = slices.Clone(puzzles[s.currentPuzzle].tokens)
-					s.goal = puzzles[s.currentPuzzle].goal
-					log.Printf("moved to puzzle %d", s.currentPuzzle)
-				}
-				unassign()
-			default:
-				log.Printf("unknown control command %q", c)
-			}
-
-			updateClients()
-
-		case u := <-updates:
-			if s.levelStarted && !s.levelClear && u.puzzleID == s.currentPuzzle && u.tokenID >= 0 && u.tokenID < len(s.tokens) {
-				//log.Printf("update[%d]: %+v", u.tokenID, u.loc)
-				s.tokens[u.tokenID].tokenLoc = u.loc
-
-			}
-
-			updateClients()
-
-		case subReq := <-subChan:
-			subs[subId] = subReq
-			subId += 1
-			log.Printf("%d/%d players", len(subs), len(s.tokens))
-			if s.levelStarted {
-				// If we've started reassign on new players
-				// to "reassign" disconnected ones.
-				reassign()
-			}
-
-			updateClients()
-
-		case s.ghciOut = <-evalResps:
-			updateClients()
-
 		}
-	}
-}
+	}()
 
-func (s *puzzleState) next() bool {
-	s.currentPuzzle += 1
-	if s.currentPuzzle >= len(puzzles) {
-		return false
-	}
+	go func() {
+		for r := range p.updates {
+			bs, _ := json.Marshal(r)
+			if err := websocket.Message.Send(ws, string(bs)); err != nil {
+				errs <- err
+				break
+			}
+		}
+		errs <- nil
+	}()
 
-	s.tokens = slices.Clone(puzzles[s.currentPuzzle].tokens)
-	return true
-}
+	// Wait for either fail to receive or send
+	<-errs
+	s.mu.Lock()
+	s.removePlayer(pid)
+	s.mu.Unlock()
+	ws.Close()
+	<-errs
 
-func handleControl(w http.ResponseWriter, req *http.Request) {
-	control <- req.URL.RawQuery
 }
 
 func evaluate(input string) string {
@@ -374,91 +406,62 @@ func evaluate(input string) string {
 	return string(out)
 }
 
-func evaluator() {
-	ticks := time.NewTicker(100 * time.Millisecond)
-	var (
-		current string
-		last    string
-	)
-	for {
-		select {
-		case new := <-evalReqs:
-			current = new
-		case <-ticks.C:
-			if current != "" && current != last {
-				log.Printf("evaluating %q", current)
-				result := evaluate(current)
-				evalResps <- "λ> " + current + "\n" + result
-				last = current
-				current = ""
-			}
+func arrange(tokens []puzzleToken) []puzzleToken {
+	filteredTokens := []puzzleToken{}
+	for i := range tokens {
+		if math.Abs(tokens[i].Y-0.5) < 0.1 {
+			filteredTokens = append(filteredTokens, tokens[i])
 		}
+	}
+	slices.SortFunc(filteredTokens, func(a, b puzzleToken) bool {
+		return a.X < b.X
+	})
+	return filteredTokens
+}
+
+func Map[A, B any](xs []A, f func(*A) B) []B {
+	out := make([]B, len(xs))
+	for i := range xs {
+		out[i] = f(&xs[i])
+	}
+	return out
+}
+
+// runs ghci once in a while
+func (s *state) evaluator() {
+	var last string
+	for {
+		s.mu.RLock()
+		currentCode := tokenStr(arrange(s.tokens))
+		s.mu.RUnlock()
+		if currentCode != "" && currentCode != last {
+			// log.Printf("evaluating %q", currentCode)
+			result := evaluate(currentCode)
+			// log.Printf("done evaluating %q", currentCode)
+			s.mu.Lock()
+			s.ghciOut = "λ> " + currentCode + "\n" + result
+			s.mu.Unlock()
+			last = currentCode
+			currentCode = ""
+		}
+		time.Sleep(100 * time.Millisecond)
 	}
 }
 
-type postRequest struct {
-	PuzzleID int
-	X        float64
-	Y        float64
-}
+func main() {
+	s := &state{
+		currentPuzzle: 0,
+		players:       make(map[playerId]player),
+		active:        make(map[playerId]int),
+	}
+	s.afterLevelChange()
 
-type postResponse struct {
-	GHCIOutput string
-	PuzzleID   int
-	PuzzleGoal string
-	LevelClear bool
-	TokenID    int
-	Tokens     []puzzleToken
-}
+	go s.processTokenUpdates()
+	go s.evaluator()
+	go s.sendUpdates()
 
-func ws(ws *websocket.Conn) {
-	tokenID := int(-1)
-
-	responses := make(chan postResponse, 5)
-	errs := make(chan error, 2)
-	stop := make(chan struct{})
-
-	go func() {
-		for {
-			var bs []byte
-			err := websocket.Message.Receive(ws, &bs)
-			if err != nil {
-				errs <- err
-				return
-			}
-
-			var postReq postRequest
-			err = json.Unmarshal(bs, &postReq)
-			if err != nil {
-				continue
-			}
-			updates <- clientUpdate{
-				puzzleID: postReq.PuzzleID,
-				tokenID:  tokenID,
-				loc:      tokenLoc{postReq.X, postReq.Y},
-			}
-		}
-	}()
-
-	go func() {
-		subChan <- subReq{responses, stop}
-		for r := range responses {
-			tokenID = r.TokenID // yeah it's racy.
-			bs, _ := json.Marshal(r)
-			if err := websocket.Message.Send(ws, string(bs)); err != nil {
-				errs <- err
-				break
-			}
-		}
-		// Drain.
-		for range responses {
-		}
-		errs <- nil
-	}()
-
-	// Wait for either receive or send to fail.
-	<-errs
-	close(stop)
-	ws.Close()
-	<-errs
+	http.HandleFunc("/control", func(w http.ResponseWriter, req *http.Request) { s.control(w, req) })
+	http.Handle("/ws", websocket.Handler(func(ws *websocket.Conn) { s.ws(ws) }))
+	http.Handle("/", http.FileServer(http.Dir("frontend")))
+	http.ListenAndServe("0.0.0.0:8001", http.DefaultServeMux)
 }

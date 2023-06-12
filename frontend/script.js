@@ -59,22 +59,29 @@ wsUrl.href
 const socket = new WebSocket(wsUrl.href);
 
 socket.addEventListener("message", (event) => {
-	console.log("message:", event.data);
+
+	    console.log("message:", event.data);
         const obj = JSON.parse(event.data);
         tokenId = obj.TokenID
         for (let i in obj.Tokens) {
-            if (i != tokenId) {
-                tokens[i] = obj.Tokens[i];
+            const tok = tokens[i];
+            tokens[i] = obj.Tokens[i];
+            if (i == tokenId && tok) {
+                tokens[i].X = tok.X;
+                tokens[i].Y = tok.Y;
             }
         }
 
+        console.log('tokens', tokens)
+        console.log('tokenID', tokenId)
+
         puzzleId = obj.PuzzleID;
         document.getElementById("goal").innerHTML = obj.PuzzleGoal
-	if (obj.LevelClear) {
-            document.getElementById("ghci").classList.add("won");
-	} else {
-            document.getElementById("ghci").classList.remove("won");
-	}
+        if (obj.LevelClear) {
+                document.getElementById("ghci").classList.add("won");
+        } else {
+                document.getElementById("ghci").classList.remove("won");
+        }
         //console.log(obj);
         document.getElementById("ghci").innerHTML = obj.GHCIOutput;
         render();
@@ -87,12 +94,14 @@ function send() {
     const timerExists = dataToSend !== null;
     dataToSend = JSON.stringify({
         "PuzzleID": puzzleId,
+        "TokenID": tokenId,
         "X": tokens[tokenId].X,
         "Y": tokens[tokenId].Y
     });
     if (!timerExists) {
         setTimeout(() => {
             if (dataToSend !== null) {
+                // console.log('sending', dataToSend);
                 socket.send(dataToSend);
                 dataToSend = null;
             }
