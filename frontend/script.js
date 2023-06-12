@@ -24,11 +24,15 @@ canvas.addEventListener('click', () => {
 
 function render() {
     const ctx = canvas.getContext("2d");
-    ctx.fillStyle = "rgb(0, 100, 100)";
     ctx.font = "30px monospace";
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     for (let i in tokens) {
         const token = tokens[i];
+        if (i == tokenId) {
+            ctx.fillStyle = "rgb(130, 110, 0)";
+        } else {
+            ctx.fillStyle = "rgb(0, 100, 100)";
+        }
         ctx.fillText(token.Token, token.X * canvas.width, token.Y * canvas.height);
     }
 }
