@@ -29,7 +29,7 @@ func main() {
 	http.HandleFunc("/control", handleControl)
 
 	http.Handle("/ws", websocket.Handler(ws))
-	http.Handle("/", http.FileServer(http.Dir("../frontend")))
+	http.Handle("/", http.FileServer(http.Dir("frontend")))
 	http.ListenAndServe("0.0.0.0:8001", http.DefaultServeMux)
 }
 
