@@ -257,6 +257,7 @@ func (s *puzzleState) run() {
 			r := postResponse{
 				GHCIOutput: s.ghciOut,
 				PuzzleGoal: s.goal,
+				LevelClear: s.levelClear,
 				PuzzleID:   s.currentPuzzle,
 				Tokens:     slices.Clone(s.tokens),
 			}
@@ -405,6 +406,7 @@ type postResponse struct {
 	GHCIOutput string
 	PuzzleID   int
 	PuzzleGoal string
+	LevelClear bool
 	TokenID    int
 	Tokens     []puzzleToken
 }

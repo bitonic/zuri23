@@ -75,6 +75,11 @@ socket.addEventListener("message", (event) => {
 	        document.getElementById("goal").innerHTML = obj.PuzzleGoal
 
         }
+	if (obj.LevelClear) {
+            document.getElementById("ghci").classList.add("won");
+	} else {
+            document.getElementById("ghci").classList.remove("won");
+	}
         //console.log(obj);
         document.getElementById("ghci").innerHTML = obj.GHCIOutput;
         render();
