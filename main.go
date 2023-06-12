@@ -223,6 +223,12 @@ func (s *puzzleState) run() {
 			unassigned[tokenId] = false
 		}
 	}
+	unassign := func() {
+		for _, tokenId := range maps.Keys(unassigned) {
+			unassigned[tokenId] = true
+			delete(assignments, int64(tokenId))
+		}
+	}
 
 	for {
 		select {
@@ -273,6 +279,12 @@ func (s *puzzleState) run() {
 			switch c {
 			case "start":
 				s.levelStarted = true
+				assignments = map[int64]int{}
+				unassigned = map[int]bool{}
+				for i := range s.tokens {
+					unassigned[i] = true
+				}
+				reassign()
 				log.Printf("started")
 			case "prev":
 				if s.currentPuzzle-1 >= 0 {
@@ -283,6 +295,7 @@ func (s *puzzleState) run() {
 					s.goal = puzzles[s.currentPuzzle].goal
 					log.Printf("moved to puzzle %d", s.currentPuzzle)
 				}
+				unassign()
 			case "next":
 				if s.currentPuzzle+1 < len(puzzles) {
 					s.levelClear = false
@@ -292,17 +305,10 @@ func (s *puzzleState) run() {
 					s.goal = puzzles[s.currentPuzzle].goal
 					log.Printf("moved to puzzle %d", s.currentPuzzle)
 				}
+				unassign()
 			default:
 				log.Printf("unknown control command %q", c)
 			}
-
-			// Redo assignments on each control message.
-			assignments = map[int64]int{}
-			unassigned = map[int]bool{}
-			for i := range s.tokens {
-				unassigned[i] = true
-			}
-			reassign()
 
 			updateClients()
 
