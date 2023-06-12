@@ -68,13 +68,8 @@ socket.addEventListener("message", (event) => {
             }
         }
 
-        if (obj.PuzzleID != puzzleId) {
-	        // New puzzle!
-	        puzzleId = obj.PuzzleID;
-	        tokens = obj.Tokens;
-	        document.getElementById("goal").innerHTML = obj.PuzzleGoal
-
-        }
+        puzzleId = obj.PuzzleID;
+        document.getElementById("goal").innerHTML = obj.PuzzleGoal
 	if (obj.LevelClear) {
             document.getElementById("ghci").classList.add("won");
 	} else {
