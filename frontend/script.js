@@ -26,6 +26,9 @@ function render() {
     const ctx = canvas.getContext("2d");
     ctx.font = "30px monospace";
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    ctx.fillStyle = "rgba(200, 200, 0, 0.3)";
+    ctx.fillRect(0, 0.4 * canvas.height, canvas.width, 0.2 * canvas.height);
     for (let i in tokens) {
         const token = tokens[i];
         if (i == tokenId) {
