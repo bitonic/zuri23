@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+	"math"
 
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
@@ -169,11 +170,16 @@ func Map[A, B any](xs []A, f func(A) B) []B {
 }
 
 func arrange(tokens []puzzleToken) []puzzleToken {
-	tokens = slices.Clone(tokens)
-	slices.SortFunc(tokens, func(a, b puzzleToken) bool {
+	filteredTokens := []puzzleToken {}
+        for i := range tokens {
+            if math.Abs(tokens[i].Y - 0.5) < 0.1 {
+                filteredTokens = append(filteredTokens, tokens[i])
+            }
+        }
+	slices.SortFunc(filteredTokens, func(a, b puzzleToken) bool {
 		return a.X < b.X
 	})
-	return tokens
+	return filteredTokens
 }
 
 func shuffledKeys[K comparable, V any](m map[K]V) []K {
