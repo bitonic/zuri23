@@ -29,6 +29,19 @@ function render() {
 
     ctx.fillStyle = "rgba(200, 200, 0, 0.3)";
     ctx.fillRect(0, 0.4 * canvas.height, canvas.width, 0.2 * canvas.height);
+
+    ctx.strokeStyle = "rgb(160, 160, 255)";
+    for (let i  = 0; i < 10; i++) {
+        ctx.beginPath();
+        ctx.moveTo(0,            canvas.height * i / 10);
+        ctx.lineTo(canvas.width, canvas.height * i / 10);
+        ctx.stroke();
+    }
+    ctx.beginPath();
+    ctx.moveTo(canvas.width * 0.1, 0);
+    ctx.lineTo(canvas.width * 0.1, canvas.height);
+    ctx.stroke();
+
     for (let i in tokens) {
         const token = tokens[i];
         if (i == tokenId) {
