@@ -277,6 +277,7 @@ func (s *puzzleState) run() {
 			case "prev":
 				if s.currentPuzzle-1 >= 0 {
 					s.levelClear = false
+					s.levelStarted = false
 					s.currentPuzzle--
 					s.tokens = slices.Clone(puzzles[s.currentPuzzle].tokens)
 					s.goal = puzzles[s.currentPuzzle].goal
@@ -285,6 +286,7 @@ func (s *puzzleState) run() {
 			case "next":
 				if s.currentPuzzle+1 < len(puzzles) {
 					s.levelClear = false
+					s.levelStarted = false
 					s.currentPuzzle++
 					s.tokens = slices.Clone(puzzles[s.currentPuzzle].tokens)
 					s.goal = puzzles[s.currentPuzzle].goal
