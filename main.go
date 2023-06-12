@@ -358,7 +358,7 @@ func evaluate(input string) string {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
-	cmdCtx := exec.CommandContext(ctx, "/usr/bin/env", "runhaskell")
+	cmdCtx := exec.CommandContext(ctx, "/usr/bin/env", "runhaskell", "-XExtendedDefaultRules")
 	cmdCtx.Stdin = bytes.NewReader([]byte("import Control.Monad\nsolution = " + input + "\nmain = print solution"))
 	out, err := cmdCtx.CombinedOutput()
 	if err != nil {
